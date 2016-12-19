@@ -111,8 +111,8 @@ def instor(): # insert start and end tags '<torrents>'
     FB.seek(0)
     FB.write(b'<?xml version="1.0"?>\n<torrents>      ')
     FB.close()
-    FB = open(backup,'a',encoding='utf-8')
-    FB.write('</torrents>')
+    FB = open(backup,'ab')
+    FB.write(b'</torrents>')
     FB.close()
 
 def load_forums3():
