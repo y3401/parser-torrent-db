@@ -13,7 +13,7 @@ forums = 'forums.csv'
 k = 0
 seq=[1,2,4,8,9,10,11,18,19,20,
      22,23,24,25,26,27,28,29,
-     31,33,34,35,36]
+     31,33,34,35,36,37]
 
 class TorHandler(xml.sax.ContentHandler):
     def __init__(self):
@@ -37,6 +37,7 @@ class TorHandler(xml.sax.ContentHandler):
             b_size = attributes['size']
         elif tag == 'forum':
             forum_id = attributes['id']
+            
                    
    # Call when an elements ends 
     def endElement(self, tag):
@@ -50,6 +51,7 @@ class TorHandler(xml.sax.ContentHandler):
             self.magnet = ''
         elif self.CurrentData == 'forum':
             forum = self.forum
+            forum=forum.replace('"',"'")
             self.forum = ''
         elif tag == 'content':
             #F=open('u'+str(tid)+'.txt','w',encoding='utf-8')   # можно сделать запись
@@ -97,7 +99,14 @@ def fileOpen():
             globals()[s] = open(catalog+'/category_'+str(i)+'.csv','a',encoding = 'utf-8')
         else:
             globals()[s] = open(catalog+'/category_'+str(i)+'.csv','ab')
+    
+    F_info=open(catalog+'/category_info.csv','w',encoding = 'utf-8')    # пока для 3-й версии
+    for ctg in sorted(lite.CAT):
+        catline='"%s";"%s";"category_%s.csv"\n' % (ctg[0],ctg[1],ctg[0])
+        F_info.write(catline)
+    F_info.close()
 
+#"ID категории";"Название категории";"Файл с раздачами"
     
 def fileClose():
     for i in seq:
@@ -131,10 +140,9 @@ def instor(): # insert start and end tags '<torrents>'
 def load_forums3():
     # Load dic FORUMS vers 3
     for line in open(forums, encoding = 'utf-8'):
-        L=line.split(sep=';')
-        forum = L[0]
-        name_forum=L[1][1:-1]
-        category = L[-1]
+        forum = line.split(sep=';"')[0]
+        category = line.split(sep='";')[1]
+        name_forum=line.split(sep=';"')[1].split(sep='";')[0]
         D[forum] = category
         List.append((int(forum),name_forum,int(category)))
         
@@ -143,9 +151,9 @@ def load_forums2():
     for line in open(forums,'rb').xreadlines():
         xline=line.decode('utf-8')
         L=xline.split(sep=';')
-        forum = L[0]
-        name_forum=L[1][1:-1]
-        category = L[-1]
+        forum = xline.split(';"')[0]
+        category = xline.split('";')[1]
+        name_forum=line.split(sep=';"')[1].split(sep='";')[0]
         D[forum] = category
         List.append((int(forum),name_forum,int(category)))
     
