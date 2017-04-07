@@ -6,6 +6,7 @@ import xml.sax
 import os, os.path
 import sys
 import modsql3 as lite
+import zipfile
 
 D = {}
 List=[]
@@ -54,9 +55,6 @@ class TorHandler(xml.sax.ContentHandler):
             forum=forum.replace('"',"'")
             self.forum = ''
         elif tag == 'content':
-            #F=open('u'+str(tid)+'.txt','w',encoding='utf-8')   # можно сделать запись
-            #F.write(self.contents)                             # контента в файлы
-            #F.close()
             contents = self.contents
             self.contents = ''
         elif tag == 'title':
@@ -204,7 +202,8 @@ if __name__ == '__main__':
             lite.ins_forums(List)
             if un == '3':
                 lite.create_db_content(dirDB+'/')
-     
+
+        lite.ins_vers(period)
         
 
         parser = xml.sax.make_parser()                              # create an XMLReader
@@ -212,11 +211,16 @@ if __name__ == '__main__':
         Handler = TorHandler()                                      # override the default ContextHandler
         parser.setContentHandler( Handler )
 
+        if backup[-3:]=='zip':
+            print('ZIP')
+            backup=zipfile.ZipFile(backup).extract(backup[:-3]+'xml')
+            
         if un == '1': fileOpen()
         parser.parse(backup)
         if un == '1':
             fileClose()
         else:
+            lite.dbc()
             lite.close_db()
         print('Extract OK!')
 
