@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # модуль записи "RuTracker.org" xml в БД sqlite3
 
-import sqlite3, zlib
+import sqlite3, zlib,re
 import modbbcode
 
 CAT=[(1,'Обсуждения, встречи, общение'), (2,'Кино, Видео и ТВ'), (4,'Новости'),
@@ -120,6 +120,38 @@ def sel_content(id_tor, dirdb=''):
     
     cur.close()
     DB1.close()
+
+def test():
+    dl=0
+    DIC={}
+    DB=sqlite3.connect('DB/torrents.db3')
+    cur=DB.cursor()
+    cur.execute('select title,file_id from torrent')
+    for row in cur.fetchall():
+        title=row[0]
+        file_id=row[1]
+        L=set(re.split('\d|\W+',title))
+        for word in L:
+            if word!='' and len(word)>2:
+                try:
+                    DIC[word.upper()]+=[file_id]
+                except:
+                    DIC[word.upper()]=[file_id]
+            #if len(word)>dl:
+            #    dl=len(word)
+            #    maxword=word
+    n=0
+    for key in sorted(DIC):
+        DB.execute('INSERT INTO "links"(word, links) SELECT ?, ?;', (str(key),'{}'.format(DIC[key])) )
+        n+=1
+        if n>10000:
+            DB.commit()
+            n=0
+    DB.commit()
+    #print(ins)
+    cur.close()
+    DB.close()
+    print('Все!')
     
     
 def close_db():
@@ -132,11 +164,12 @@ def close_db():
         pass
 
 if __name__ == '__main__':
-    create_db()
-    ins_tor(2,3,'hash','title',12345,'2017.01.07 15:17:00')
-    ins_tor(2,4,'hash','title',12345,'2016.01.06 15:17:00')
-    create_db_content()
-    ins_content(3,'''Текст описания '''*100)
-    dbc()
-    sel_content(3)
-    DB.close()
+#    create_db()
+#    ins_tor(2,3,'hash','title',12345,'2017.01.07 15:17:00')
+#    ins_tor(2,4,'hash','title',12345,'2016.01.06 15:17:00')
+#    create_db_content()
+#    ins_content(3,'''Текст описания '''*100)
+#    dbc()
+#    sel_content(3)
+#    DB.close()
+    test()
