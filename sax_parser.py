@@ -1,20 +1,67 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# парсинг дампа БД "RuTracker.org" xml->csv
+ 
+''' Парсинг дампа БД "RuTracker.org" xml->csv + sqlite3
 
+    Описание обрабатываемого формата XML:
+
+<torrent id="{ID топика}" registred_at="{Дата регистрации в формате Y.[*]m.d H:i:s}" size="{Размер раздачи в байтах}">
+    <title>{Название раздачи}</title>
+    <torrent hash="{Инфохеш}" tracker_id="{Номер трекера}"/>
+    <forum id="{ID форума}">{Название форума с категориями}</forum>
+    <content>{Оформление раздачи}</content>
+    <dir name="{Имя каталога}">
+        <file size="{Размер в байтах}" name="{Имя файла}/>
+    </dir>
+    <dup p="{Уверенность в процентах}" id="{ID топика возможного дубля}">{Заголовок возможного дубля}</dup>
+</torrent>
+
+    Тэги <dir>, <file>, <dup>, а также атрибут 'tracker_id' в этом скрипте игнорируются.
+
+    Обрабатываемый файл должен именоваться по маске "backup.YYYYMMDD*.xml",
+например: "backup.20180721.xls"
+
+    Режимы работы:
+ 0 - Проверка списка форумов: осуществляется проход по файлу для выявления списка форумов,
+                              не указанных в файле "forums.csv". Создается файл "cat_0000.csv",
+                              из которого нужно выбрать уникальные номера и наименования форумов
+                              и добавить их в файл справочника, + указать привязку к категории.
+                              Выполняется быстрее, так как записывает только не привязанные к
+                              справочнику форумов записи.
+
+ 1 - Сохранение в CSV:        разбирает исходный файл на текстовые файлы по категориям.
+                              Описание формата:
+                                  category_info.csv: 
+                                      "ID категории";"Название категории";"Файл с раздачами"
+                                  category_*.csv:
+                                      "ID форума";"Название форума";"ID раздачи";"Info hash";"Название раздачи";"Размер в байтах","Дата регистрации торрента"
+
+ 2 - Сохранение в БД(sqlite): выборка и сохрание раздач в БД формата sqlite3 (файл "torrents.db3").
+                              БД содержит справочник категорий, справочник форумов и список раздач без
+                              описаний (как и в CSV).
+
+ 3 - Сохранение описания
+     раздач в отдельную БД:   дополнительно создается БД для записи "Оформления раздач" (тэг <content>).
+                              Данные упаковываются архиватором для уменьшения размера файла.
+ 4 - Выход
+'''
 import xml.sax
 import os, os.path
 import sys
 import modsql3 as lite
 import zipfile
+import time
 
 D = {}
+Dn = {}
 List=[]
 forums = 'forums.csv'
 k = 0
 seq=[1,2,4,8,9,10,11,18,19,20,
      22,23,24,25,26,27,28,29,
-     31,33,34,35,36,37]
+     31,33,34,35,37]    
+time_begin = 0  
+time_end = 0    
 
 class TorHandler(xml.sax.ContentHandler):
     def __init__(self):
@@ -22,68 +69,65 @@ class TorHandler(xml.sax.ContentHandler):
         self.reg_date = ''
         self.b_size = ''
         self.title = ''
-        self.url = ''
         self.magnet = ''
         self.forum_id = ''
         self.forum = ''
         self.contents = ''
-
+        self.levl = 0
+        
    # Call when an element starts
     def startElement(self, tag, attributes):
-        self.CurrentData = tag
         global tid, reg_date, b_size, forum_id, magnet
+        self.CurrentData = tag
         if tag == 'torrent':
-            tid = attributes['id']
-            reg_date = attributes['registred_at']
-            b_size = attributes['size']
+            if self.levl == 0:
+                tid = attributes['id']
+                reg_date = attributes['registred_at']
+                b_size = attributes['size']
+            elif self.levl == 1:
+                magnet =  attributes['hash']
         elif tag == 'forum':
             forum_id = attributes['id']
-        elif tag == 'torr':
-            magnet =  attributes['hash']
-            
                    
    # Call when an elements ends 
     def endElement(self, tag):
         global forum, title, k, contents
-        if self.CurrentData == 'url':
-            pass
-        elif self.CurrentData == 'torr':
-            pass
-        elif self.CurrentData == 'forum':
+        if tag == 'forum':
             forum = self.forum
             forum=forum.replace('"',"'")
             self.forum = ''
         elif tag == 'content':
             contents = self.contents
             self.contents = ''
+            self.levl=2
         elif tag == 'title':
             title = self.title
+            title=title.replace('"',"'")
             self.title = ''
-        elif tag == 'torrent':
+            self.levl = 1
+        if self.levl==2 and tag == 'torrent':
+            self.levl=0
             k += 1
-            sline = '"%s";"%s";"%s";"%s";"%s";"%s";"%s"\n' % (forum_id,forum,tid,magnet,title,b_size,reg_date)
-            n = int(D.get(forum_id,0))
-            if un == '1':
+            if un in ('0','1'):
+                forum = Dn.get(forum_id,forum)    
+                n = int(D.get(forum_id,0))
+                sline = '"%s";"%s";"%s";"%s";"%s";"%s";"%s"\n' % (forum_id,forum,tid,magnet,title,b_size,reg_date)
                 fileWrite(sline,n)
             else:
-                lite.check_podr(forum_id,forum)
-                lite.ins_tor(n,forum_id,tid,magnet,title,b_size,reg_date)
+                #lite.check_podr(forum_id,forum)
+                lite.ins_tor(forum_id,tid,magnet,title,b_size,reg_date)
                 if un == '3':
                     lite.ins_content(tid,contents)
-            if k == 1000:
+            if k%1000==0:
                 if un != '1': lite.dbc()
-                print(tid)
-                k = 0
+                print(k) #tid
+                #k = 0
         self.CurrentData = ''
         
    # Call when a character is read
     def characters(self, content):
         if self.CurrentData == 'title':
             self.title += content
-        elif self.CurrentData == 'url':
-            self.url = content
-        elif self.CurrentData == 'torr':
-            self.magnet = content
         elif self.CurrentData == 'forum':
             self.forum += content
         elif self.CurrentData == 'content':
@@ -118,22 +162,13 @@ def fileWrite(stroka,n):
         st=stroka
         stroka = st.encode('utf-8')
     if n == 0:
-        F0 = open(catalog+'/category_0.csv','a',encoding = 'utf-8')
+        F0 = open(catalog+'/cat_0000.csv','a',encoding = 'utf-8')
         F0.write(stroka)
         F0.close()
     else:
-        globals()['F'+str(n)].write(stroka)
+        if un != '0':
+            globals()['F'+str(n)].write(stroka)
         
-
-def instor(): # insert start and end tags '<torrents>'
-    FB = open(backup,'r+b')
-    FB.seek(0)
-    FB.write(b'<?xml version="1.0"?>\n<torrents>      ')
-    FB.close()
-    FB = open(backup,'a',encoding='utf-8')
-    FB.write('</torrents>')
-    FB.close()
-
 def load_forums3():
     # Load dic FORUMS vers 3
     for line in open(forums, encoding = 'utf-8'):
@@ -141,6 +176,7 @@ def load_forums3():
         category = line.split(sep='";')[1]
         name_forum=line.split(sep=';"')[1].split(sep='";')[0]
         D[forum] = category
+        Dn[forum] = name_forum
         List.append((int(forum),name_forum,int(category)))
         
 def load_forums2():
@@ -152,13 +188,9 @@ def load_forums2():
         category = xline.split('";')[1]
         name_forum=line.split(sep=';"')[1].split(sep='";')[0]
         D[forum] = category
+        Dn[forum] = name_forum
         List.append((int(forum),name_forum,int(category)))
     
-def test_tor():                 # test for '<torrents>'
-    f = open(backup,'rb')
-    a = str(f.read(50))
-    f.close()
-    if a.find('<torrents>') == -1: instor()
 
 # START PROG ->
 if __name__ == '__main__':
@@ -175,28 +207,30 @@ if __name__ == '__main__':
     print('Обрабатываемый файл: ' + backup)
 
     un = input('''Выберите нужное действие:
+    0. Проверить список форумов;
     1. Сохранить в CSV;
     2. Сохранить в БД(sqlite);
     3. Сохранить описания раздач в отдельную БД(дополнительно, со сжатием);
-    4. Выход (любой ввод кроме 1,2,3)\n''')
+    4. Выход (любой ввод кроме 0,1,2,3)\n''')
 
-    if un in ('1','2','3'):
+    if un in ('0','1','2','3'):
+        time_begin=time.time()
         if sys.version[0] == '3':
             load_forums3()
         else:
             load_forums2()
         print('Dictionary loaded')
+
         
-        if un == '1':
+        if un in ('0','1'):
             if os.path.exists(catalog):
                 for f in os.listdir(catalog):
                     os.remove(catalog+'/'+f)
             else:
                 os.mkdir(catalog)
-        elif un == '2' or '3':
+        elif un in ('2','3'):
             if not os.path.exists(dirDB):
                 os.mkdir(dirDB)
-
             lite.create_db(dirDB+'/')
             lite.ins_forums(List)
             if un == '3':
@@ -213,14 +247,30 @@ if __name__ == '__main__':
             print('ZIP')
             backup=zipfile.ZipFile(backup).extract(backup[:-3]+'xml')
             
-        if un == '1': fileOpen()
+        if un == '1':
+            fileOpen()
+            
         parser.parse(backup)
+        
         if un == '1':
             fileClose()
         else:
             lite.dbc()
             lite.close_db()
+        print (k)
+        time_end=time.time()
+        tsec=time_end-time_begin
+        stsec=(str(tsec)).split('.')
+        tsec=int(stsec[0])
+        seconds=0
+        minutes=0
+        hours=0
+        n=0
+        seconds=tsec % 60
+        minutes=(tsec//60) % 60
+        hours=(tsec//3600) % 24
         print('Extract OK!')
+        print('Затраченное время - %s:%s:%s' % (str(hours),('0'+str(minutes))[-2:],('0'+str(seconds))[-2:]))
 
     else:
         print('Goodbye!')

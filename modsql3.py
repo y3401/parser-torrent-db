@@ -11,7 +11,7 @@ CAT=[(1,'Обсуждения, встречи, общение'), (2,'Кино, �
      (23,'Электронная музыка'), (24,'Все по авто и мото'), (25,'Книги и журналы'),
      (26,'Apple'), (27,'Медицина и здоровье'), (28,'Спорт'), (29,'Мобильные устройства'),
      (31,'Джазовая и Блюзовая музыка'), (33,'Аудиокниги'), (34,'Обучение иностранным языкам'),
-     (35,'Популярная музыка'), (36,'ОБХОД БЛОКИРОВОК'),(37,'Hi-Res форматы, оцифровки')]
+     (35,'Популярная музыка'), (37,'Hi-Res форматы, оцифровки')]
 
 def create_db(dirdb=''):    #Создание базы и заполнение таблицы категорий
     global DB,CAT
@@ -55,7 +55,7 @@ def create_db_content(dirdb=''): # Создание доп. БД для хран
     DB1=sqlite3.connect(dirdb + 'content.db3')
     cur=DB1.cursor()
     cur.executescript("""
-    CREATE TABLE "contents"
+    CREATE TABLE IF NOT EXISTS "contents"
     ("tid" integer NOT NULL PRIMARY KEY,
     "cont" text NOT NULL);
 
@@ -91,10 +91,10 @@ def check_podr(kod_podr,name_podr):
     else:
         pass
 
-def ins_tor(id_razd,id_podr,id_file,hash_info,title,size_b,date_reg):
+def ins_tor(id_podr,id_file,hash_info,title,size_b,date_reg):
     TOR=[(id_podr,id_file,hash_info,title,size_b,date_reg)]
     try:
-        DB.executemany('INSERT INTO torrent(forum_id,file_id,hash_info,title,size_b,date_reg) VALUES (?,?,?,?,?,?);', TOR)
+        DB.execute('INSERT INTO torrent(forum_id,file_id,hash_info,title,size_b,date_reg) SELECT ?,?,?,?,?,?;', (id_podr,id_file,hash_info,title,size_b,date_reg))
     except:
         dbc()
 
@@ -156,9 +156,9 @@ def test():
     
 def close_db():
     try:
-        #DB.execute('vacuum')
+        DB.execute('vacuum')
         DB.close()
-        #DB1.execute('vacuum')
+        DB1.execute('vacuum')
         DB1.close()
     except:
         pass
@@ -169,7 +169,8 @@ if __name__ == '__main__':
 #    ins_tor(2,4,'hash','title',12345,'2016.01.06 15:17:00')
 #    create_db_content()
 #    ins_content(3,'''Текст описания '''*100)
-#    dbc()
+    dbc()
 #    sel_content(3)
-#    DB.close()
-    test()
+#   DB.close()
+    #test()
+
