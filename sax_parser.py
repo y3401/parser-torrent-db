@@ -203,7 +203,7 @@ if __name__ == '__main__':
     	
     period = backup.split(".")[1][:8]
     catalog = './'+period
-    dirDB = './DB'
+    dirDB = 'C://DB'
     print('Обрабатываемый файл: ' + backup)
 
     un = input('''Выберите нужное действие:
