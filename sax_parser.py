@@ -22,13 +22,6 @@
 например: "backup.20180721.xml"
 
     Режимы работы:
- 0 - Проверка списка форумов: осуществляется проход по файлу для выявления списка форумов,
-                              не указанных в файле "forums.csv". Создается файл "cat_0000.csv",
-                              из которого нужно выбрать уникальные номера и наименования форумов
-                              и добавить их в файл справочника, + указать привязку к категории.
-                              Выполняется быстрее, так как записывает только не привязанные к
-                              справочнику форумов записи.
-
  1 - Сохранение в CSV:        разбирает исходный файл на текстовые файлы по категориям.
                               Описание формата:
                                   category_info.csv: 
@@ -44,6 +37,8 @@
      раздач в отдельную БД:   дополнительно создается БД для записи "Оформления раздач" (тэг <content>).
                               Данные упаковываются архиватором для уменьшения размера файла.
  4 - Выход
+
+    Названия форумов и принадлежность к конкретным категориям берутся из исходного файла. Внешний файл "forums.csv" не нужен. 
 '''
 import xml.sax
 import os, os.path
@@ -62,6 +57,8 @@ seq=[1,2,4,8,9,10,11,18,19,20,
      31,33,34,35,37]    
 time_begin = 0  
 time_end = 0    
+CAT_INV = {}
+fr = ''
 
 class TorHandler(xml.sax.ContentHandler):
     def __init__(self):
@@ -108,13 +105,13 @@ class TorHandler(xml.sax.ContentHandler):
         if self.levl==2 and tag == 'torrent':
             self.levl=0
             k += 1
-            if un in ('0','1'):
-                forum = Dn.get(forum_id,forum)    
-                n = int(D.get(forum_id,0))
-                sline = '"%s";"%s";"%s";"%s";"%s";"%s";"%s"\n' % (forum_id,forum,tid,magnet,title,b_size,reg_date)
+            n=CAT_INV.get(forum.split(sep=" - ")[0],0)
+            fr=forum.split(sep=" - ")[-1]
+            if un == '1':
+                sline = '"%s";"%s";"%s";"%s";"%s";"%s";"%s"\n' % (forum_id,fr,tid,magnet,title,b_size,reg_date)
                 fileWrite(sline,n)
             else:
-                #lite.check_podr(forum_id,forum)
+                lite.check_podr(forum_id,fr,n)
                 lite.ins_tor(forum_id,tid,magnet,title,b_size,reg_date)
                 if un == '3':
                     lite.ins_content(tid,contents)
@@ -169,7 +166,7 @@ def fileWrite(stroka,n):
         if un != '0':
             globals()['F'+str(n)].write(stroka)
         
-def load_forums3():
+'''def load_forums3():                           Список форумов берется из конвертируемого файла
     # Load dic FORUMS vers 3
     for line in open(forums, encoding = 'utf-8'):
         forum = line.split(sep=';"')[0]
@@ -190,7 +187,12 @@ def load_forums2():
         D[forum] = category
         Dn[forum] = name_forum
         List.append((int(forum),name_forum,int(category)))
-    
+'''    
+def invers_category():
+    for la in lite.CAT:
+        CAT_INV[la[1]]=la[0]
+
+	
 
 # START PROG ->
 if __name__ == '__main__':
@@ -207,22 +209,22 @@ if __name__ == '__main__':
     print('Обрабатываемый файл: ' + backup)
 
     un = input('''Выберите нужное действие:
-    0. Проверить список форумов;
     1. Сохранить в CSV;
     2. Сохранить в БД(sqlite);
     3. Сохранить описания раздач в отдельную БД(дополнительно, со сжатием);
-    4. Выход (любой ввод кроме 0,1,2,3)\n''')
+    4. Выход (любой ввод кроме 1,2,3)\n''')
 
-    if un in ('0','1','2','3'):
+    if un in ('1','2','3'):
         time_begin=time.time()
-        if sys.version[0] == '3':
+        '''if sys.version[0] == '3':
             load_forums3()
         else:
             load_forums2()
-        print('Dictionary loaded')
+        print('Dictionary loaded')'''
 
+        invers_category()
         
-        if un in ('0','1'):
+        if un in ('1'):
             if os.path.exists(catalog):
                 for f in os.listdir(catalog):
                     os.remove(catalog+'/'+f)
@@ -231,8 +233,7 @@ if __name__ == '__main__':
         elif un in ('2','3'):
             if not os.path.exists(dirDB):
                 os.mkdir(dirDB)
-            lite.create_db(dirDB+'/')
-            lite.ins_forums(List)
+            lite.create_db(dirDB+'/')                               # Исключено: lite.ins_forums(List) 
             if un == '3':
                 lite.create_db_content(dirDB+'/')
             lite.ins_vers(period)
