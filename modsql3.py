@@ -69,7 +69,7 @@ def dbc():
         DB1.commit()
     except:
         pass
-    
+'''    
 def ins_forums(lists):
     for LLL in lists:
         try:
@@ -77,17 +77,17 @@ def ins_forums(lists):
         except:
             pass
     DB.commit()
-
+'''
 def ins_vers(dt):
     DB.execute('INSERT INTO vers(vers) VALUES (?);', (dt,))
     DB.commit()
     
-def check_podr(kod_podr,name_podr):
+def check_podr(kod_podr,name_podr,cat_id):
     c=DB.cursor()
     c.execute('SELECT * FROM forum WHERE code_forum=?', (kod_podr,))
     row=c.fetchall()
     if len(row) == 0:
-        c.execute('INSERT INTO forum(code_forum,name_forum,category_id) VALUES (?,?,0)', (kod_podr,name_podr))
+        c.execute('INSERT INTO forum(code_forum,name_forum,category_id) VALUES (?,?,?)', (kod_podr,name_podr,cat_id))
     else:
         pass
 
@@ -156,9 +156,9 @@ def test():
     
 def close_db():
     try:
-        DB.execute('vacuum')
+        #DB.execute('vacuum')
         DB.close()
-        DB1.execute('vacuum')
+        #DB1.execute('vacuum')
         DB1.close()
     except:
         pass
